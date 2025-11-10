@@ -2,18 +2,12 @@ const logger = require('../utils/logger');
 
 class CodeDetector {
   constructor() {
-    // Regex patterns for different visualization types
-    this.patterns = {
-      // Standard markdown format with backticks (more flexible with whitespace)
-      mermaid: /```mermaid[\s\r\n]+([\s\S]*?)```/gi,
-      // Plain format: 'mermaid' keyword on its own line, followed by diagram code
-      mermaidPlain: /(?:^|\n)mermaid[\s\r\n]+((?:(?!```|^mermaid[\s\r\n]|^plantuml[\s\r\n]|^#{1,6}\s)[\s\S])+?)(?=\n\n|\n#|$)/gmi,
-      // Mermaid diagram types without 'mermaid' keyword (flowchart, graph, sequenceDiagram, etc.)
-      mermaidDirect: /(?:^|\n)((?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline)[\s\r\n]+(?:(?!```|^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline|plantuml)[\s\r\n]|^#{1,6}\s)[\s\S])+?)(?=\n\n+|^#{1,6}\s|\n(?:flowchart|graph|sequenceDiagram)|$)/gmi,
-      plantuml: /```plantuml[\s\r\n]+([\s\S]*?)```/gi,
-      // Also support @startplantuml/@enduml syntax
-      plantumlAlt: /@startuml[\s\r\n]+([\s\S]*?)@enduml/gi
-    };
+    // Mermaid diagram type keywords
+    this.mermaidTypes = [
+      'flowchart', 'graph', 'sequenceDiagram', 'classDiagram', 
+      'stateDiagram', 'erDiagram', 'journey', 'gantt', 
+      'pie', 'gitGraph', 'mindmap', 'timeline'
+    ];
   }
 
   /**
@@ -55,11 +49,11 @@ class CodeDetector {
   detectMermaid(text) {
     const blocks = [];
     
-    // Detect standard markdown format with backticks
-    const regex1 = new RegExp(this.patterns.mermaid);
+    // Pattern 1: ```mermaid ... ```
+    const backtickPattern = /```mermaid\s*\n([\s\S]*?)```/gi;
     let match;
-
-    while ((match = regex1.exec(text)) !== null) {
+    
+    while ((match = backtickPattern.exec(text)) !== null) {
       blocks.push({
         type: 'mermaid',
         code: match[1].trim(),
@@ -68,11 +62,13 @@ class CodeDetector {
         originalBlock: match[0]
       });
     }
-
-    // Detect plain format with 'mermaid' keyword
-    const regex2 = new RegExp(this.patterns.mermaidPlain);
-    while ((match = regex2.exec(text)) !== null) {
-      // Only add if not overlapping with backtick format
+    
+    // Pattern 2: ---- delimited blocks with diagram types
+    // Matches: ---- \n diagram-type ... \n ----
+    const delimiterPattern = /----\s*\n((?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline)\s+[\s\S]*?)\n----/gi;
+    
+    while ((match = delimiterPattern.exec(text)) !== null) {
+      // Check if overlapping with backtick blocks
       const isOverlapping = blocks.some(block => 
         match.index >= block.startPosition && match.index < block.endPosition
       );
@@ -87,16 +83,19 @@ class CodeDetector {
         });
       }
     }
-
-    // Detect direct diagram types (flowchart, graph, sequenceDiagram, etc.)
-    const regex3 = new RegExp(this.patterns.mermaidDirect);
-    while ((match = regex3.exec(text)) !== null) {
-      // Only add if not overlapping with previous formats
+    
+    // Pattern 3: Direct diagram types without delimiters (separated by blank lines)
+    // Look for diagram type at start of line, followed by content until double newline
+    const diagramTypes = this.mermaidTypes.join('|');
+    const directPattern = new RegExp(`(?:^|\\n\\n)((?:${diagramTypes})\\s+[^\\n]+(?:\\n(?!\\n|----)[^\\n]*)*)`, 'gim');
+    
+    while ((match = directPattern.exec(text)) !== null) {
+      // Check if overlapping with previous patterns
       const isOverlapping = blocks.some(block => 
         match.index >= block.startPosition && match.index < block.endPosition
       );
       
-      if (!isOverlapping) {
+      if (!isOverlapping && match[1].trim().length > 10) {
         blocks.push({
           type: 'mermaid',
           code: match[1].trim(),
@@ -106,7 +105,7 @@ class CodeDetector {
         });
       }
     }
-
+    
     return blocks;
   }
 
@@ -116,11 +115,11 @@ class CodeDetector {
   detectPlantUML(text) {
     const blocks = [];
     
-    // Check markdown-style blocks
-    const regex1 = new RegExp(this.patterns.plantuml);
+    // Pattern 1: ```plantuml ... ```
+    const backtickPattern = /```plantuml\s*\n([\s\S]*?)```/gi;
     let match;
-
-    while ((match = regex1.exec(text)) !== null) {
+    
+    while ((match = backtickPattern.exec(text)) !== null) {
       blocks.push({
         type: 'plantuml',
         code: match[1].trim(),
@@ -129,19 +128,27 @@ class CodeDetector {
         originalBlock: match[0]
       });
     }
-
-    // Check @startuml/@enduml blocks
-    const regex2 = new RegExp(this.patterns.plantumlAlt);
-    while ((match = regex2.exec(text)) !== null) {
-      blocks.push({
-        type: 'plantuml',
-        code: match[1].trim(),
-        startPosition: match.index,
-        endPosition: match.index + match[0].length,
-        originalBlock: match[0]
-      });
+    
+    // Pattern 2: @startuml ... @enduml
+    const altPattern = /@startuml\s*\n([\s\S]*?)@enduml/gi;
+    
+    while ((match = altPattern.exec(text)) !== null) {
+      // Check if overlapping with backtick blocks
+      const isOverlapping = blocks.some(block => 
+        match.index >= block.startPosition && match.index < block.endPosition
+      );
+      
+      if (!isOverlapping) {
+        blocks.push({
+          type: 'plantuml',
+          code: match[1].trim(),
+          startPosition: match.index,
+          endPosition: match.index + match[0].length,
+          originalBlock: match[0]
+        });
+      }
     }
-
+    
     return blocks;
   }
 
@@ -149,9 +156,15 @@ class CodeDetector {
    * Check if document contains any visualization code
    */
   hasVisualizationCode(text) {
-    return this.patterns.mermaid.test(text) || 
-           this.patterns.plantuml.test(text) ||
-           this.patterns.plantumlAlt.test(text);
+    // Check for backtick formats
+    if (/```mermaid/i.test(text) || /```plantuml/i.test(text) || /@startuml/i.test(text)) {
+      return true;
+    }
+    
+    // Check for direct diagram types
+    const diagramTypes = this.mermaidTypes.join('|');
+    const directPattern = new RegExp(`(?:^|\\n)(?:${diagramTypes})\\s`, 'im');
+    return directPattern.test(text);
   }
 
   /**
@@ -160,11 +173,11 @@ class CodeDetector {
   getVisualizationTypes(text) {
     const types = [];
     
-    if (this.patterns.mermaid.test(text)) {
+    if (/```mermaid/i.test(text) || new RegExp(`(?:^|\\n)(?:${this.mermaidTypes.join('|')})\\s`, 'im').test(text)) {
       types.push('mermaid');
     }
     
-    if (this.patterns.plantuml.test(text) || this.patterns.plantumlAlt.test(text)) {
+    if (/```plantuml/i.test(text) || /@startuml/i.test(text)) {
       types.push('plantuml');
     }
     
