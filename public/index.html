@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Visualization Pipeline</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📊 Document Visualization Pipeline</h1>
+      <p class="subtitle">Automatically convert visualization code (Mermaid, PlantUML) into rendered images in your documents</p>
+    </header>
+
+    <main>
+      <div class="upload-section">
+        <div id="dropZone" class="drop-zone">
+          <div class="drop-zone-content">
+            <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <h2>Drop your document here</h2>
+            <p>or</p>
+            <label for="fileInput" class="btn btn-primary">
+              Choose File
+            </label>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.md,.txt" hidden>
+            <p class="file-info">Supported formats: PDF, DOCX, MD, TXT (Max 10MB)</p>
+          </div>
+        </div>
+
+        <div id="selectedFile" class="selected-file" style="display: none;">
+          <div class="file-details">
+            <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <div>
+              <p id="fileName" class="file-name"></p>
+              <p id="fileSize" class="file-size"></p>
+            </div>
+            <button id="removeFile" class="btn-remove" type="button">×</button>
+          </div>
+          <button id="uploadBtn" class="btn btn-primary btn-large">
+            Process Document
+          </button>
+        </div>
+
+        <div id="progressSection" class="progress-section" style="display: none;">
+          <div class="progress-bar">
+            <div id="progressBar" class="progress-fill"></div>
+          </div>
+          <p id="progressText" class="progress-text">Processing...</p>
+        </div>
+
+        <div id="resultSection" class="result-section" style="display: none;">
+          <div class="result-card success">
+            <svg class="result-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3>Processing Complete!</h3>
+            <div id="resultDetails" class="result-details"></div>
+            <div class="result-actions">
+              <a id="downloadLink" class="btn btn-success btn-large" download>
+                Download PDF
+              </a>
+              <button id="processAnother" class="btn btn-secondary">
+                Process Another Document
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="errorSection" class="result-section" style="display: none;">
+          <div class="result-card error">
+            <svg class="result-icon error-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3>Processing Failed</h3>
+            <p id="errorMessage" class="error-message"></p>
+            <button id="tryAgain" class="btn btn-primary">
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="info-card">
+          <h3>✨ Features</h3>
+          <ul>
+            <li>Automatically detects Mermaid and PlantUML code blocks</li>
+            <li>Renders visualizations to high-quality images</li>
+            <li>Generates searchable PDFs with embedded images</li>
+            <li>Removes all code blocks from final output</li>
+            <li>Preserves document structure and formatting</li>
+          </ul>
+        </div>
+
+        <div class="info-card">
+          <h3>📝 How to Use</h3>
+          <ol>
+            <li>Prepare your document with visualization code blocks:
+              <ul>
+                <li>Mermaid: <code>```mermaid ... ```</code></li>
+                <li>PlantUML: <code>```plantuml ... ```</code></li>
+              </ul>
+            </li>
+            <li>Upload your document (PDF, DOCX, MD, or TXT)</li>
+            <li>Wait for processing (typically under 30 seconds)</li>
+            <li>Download your rendered PDF with embedded visualizations</li>
+          </ol>
+        </div>
+
+        <div class="info-card">
+          <h3>💡 Example Mermaid Code</h3>
+          <pre><code>```mermaid
+graph TD
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great!]
+    B -->|No| D[Debug]
+    D --> A
+```</code></pre>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <p>Built with Node.js, Express, Puppeteer, and Mermaid</p>
+      <p>Maximum file size: 10MB | Supported formats: PDF, DOCX, MD, TXT</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
