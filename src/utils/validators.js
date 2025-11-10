@@ -27,11 +27,32 @@ class Validators {
   /**
    * Validate MIME type
    */
-  validateMimeType(mimetype) {
-    if (!config.upload.allowedMimeTypes.includes(mimetype)) {
-      throw new Error(`Invalid MIME type. Allowed: ${config.upload.allowedMimeTypes.join(', ')}`);
+  validateMimeType(mimetype, filename) {
+    // First check if MIME type is in allowed list
+    if (config.upload.allowedMimeTypes.includes(mimetype)) {
+      return true;
     }
-    return true;
+    
+    // If MIME type doesn't match, check if file extension is valid
+    // This handles cases where browsers send generic MIME types for .md files
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypeByExtension = {
+      '.md': ['text/markdown', 'text/plain', 'text/x-markdown', 'application/octet-stream'],
+      '.txt': ['text/plain', 'application/octet-stream'],
+      '.pdf': ['application/pdf'],
+      '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']
+    };
+    
+    if (mimeTypeByExtension[ext] && mimeTypeByExtension[ext].includes(mimetype)) {
+      return true;
+    }
+    
+    // If extension is allowed, accept it even if MIME type is generic
+    if (config.upload.allowedExtensions.includes(ext)) {
+      return true;
+    }
+    
+    throw new Error(`Invalid MIME type. Allowed: ${config.upload.allowedMimeTypes.join(', ')}`);
   }
 
   /**
@@ -44,7 +65,7 @@ class Validators {
 
     this.validateFileSize(file.size);
     this.validateFileExtension(file.originalname);
-    this.validateMimeType(file.mimetype);
+    this.validateMimeType(file.mimetype, file.originalname);
 
     return true;
   }
