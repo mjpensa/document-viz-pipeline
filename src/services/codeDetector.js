@@ -4,7 +4,10 @@ class CodeDetector {
   constructor() {
     // Regex patterns for different visualization types
     this.patterns = {
+      // Standard markdown format with backticks
       mermaid: /```mermaid\s*\n([\s\S]*?)```/gi,
+      // Plain format without backticks (mermaid keyword followed by code until next section/empty lines)
+      mermaidPlain: /\bmermaid\s*\n((?:(?!mermaid|plantuml|```|^#{1,6}\s|\n\s*\n\s*\n)[\s\S])+)/gmi,
       plantuml: /```plantuml\s*\n([\s\S]*?)```/gi,
       // Also support @startplantuml/@enduml syntax
       plantumlAlt: /@startuml\s*\n([\s\S]*?)@enduml/gi
@@ -43,10 +46,12 @@ class CodeDetector {
    */
   detectMermaid(text) {
     const blocks = [];
-    const regex = new RegExp(this.patterns.mermaid);
+    
+    // Detect standard markdown format with backticks
+    const regex1 = new RegExp(this.patterns.mermaid);
     let match;
 
-    while ((match = regex.exec(text)) !== null) {
+    while ((match = regex1.exec(text)) !== null) {
       blocks.push({
         type: 'mermaid',
         code: match[1].trim(),
@@ -54,6 +59,25 @@ class CodeDetector {
         endPosition: match.index + match[0].length,
         originalBlock: match[0]
       });
+    }
+
+    // Detect plain format without backticks
+    const regex2 = new RegExp(this.patterns.mermaidPlain);
+    while ((match = regex2.exec(text)) !== null) {
+      // Only add if not overlapping with backtick format
+      const isOverlapping = blocks.some(block => 
+        match.index >= block.startPosition && match.index < block.endPosition
+      );
+      
+      if (!isOverlapping) {
+        blocks.push({
+          type: 'mermaid',
+          code: match[1].trim(),
+          startPosition: match.index,
+          endPosition: match.index + match[0].length,
+          originalBlock: match[0]
+        });
+      }
     }
 
     return blocks;
