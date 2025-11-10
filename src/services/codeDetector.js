@@ -63,46 +63,85 @@ class CodeDetector {
       });
     }
     
-    // Pattern 2: ---- delimited blocks with diagram types
-    // Matches: ---- \n diagram-type ... \n ----
-    const delimiterPattern = /----\s*\n((?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline)\s+[\s\S]*?)\n----/gi;
-    
-    while ((match = delimiterPattern.exec(text)) !== null) {
-      // Check if overlapping with backtick blocks
-      const isOverlapping = blocks.some(block => 
-        match.index >= block.startPosition && match.index < block.endPosition
-      );
-      
-      if (!isOverlapping) {
-        blocks.push({
-          type: 'mermaid',
-          code: match[1].trim(),
-          startPosition: match.index,
-          endPosition: match.index + match[0].length,
-          originalBlock: match[0]
-        });
-      }
-    }
-    
-    // Pattern 3: Direct diagram types without delimiters (separated by blank lines)
-    // Look for diagram type at start of line, followed by content until double newline
+    // Pattern 2: Direct diagram types (no backticks, no delimiters)
+    // Matches diagram starting at line beginning, captures until we hit:
+    // - Another diagram type keyword at line start
+    // - A markdown heading
+    // - End of document
     const diagramTypes = this.mermaidTypes.join('|');
-    const directPattern = new RegExp(`(?:^|\\n\\n)((?:${diagramTypes})\\s+[^\\n]+(?:\\n(?!\\n|----)[^\\n]*)*)`, 'gim');
     
-    while ((match = directPattern.exec(text)) !== null) {
-      // Check if overlapping with previous patterns
-      const isOverlapping = blocks.some(block => 
-        match.index >= block.startPosition && match.index < block.endPosition
-      );
+    // Split text into lines for more precise detection
+    const lines = text.split('\n');
+    let i = 0;
+    
+    while (i < lines.length) {
+      const line = lines[i];
       
-      if (!isOverlapping && match[1].trim().length > 10) {
-        blocks.push({
-          type: 'mermaid',
-          code: match[1].trim(),
-          startPosition: match.index,
-          endPosition: match.index + match[0].length,
-          originalBlock: match[0]
-        });
+      // Check if this line starts with a diagram type
+      const diagramMatch = line.match(new RegExp(`^(${diagramTypes})\\s+`, 'i'));
+      
+      if (diagramMatch) {
+        // Found start of a diagram - collect lines until we find a stopping point
+        const startIdx = i;
+        const codeLines = [line];
+        i++;
+        
+        // Continue collecting lines for this diagram
+        while (i < lines.length) {
+          const nextLine = lines[i];
+          
+          // Stop if we hit another diagram type at line start
+          if (nextLine.match(new RegExp(`^(${diagramTypes})\\s+`, 'i'))) {
+            break;
+          }
+          
+          // Stop if we hit a markdown heading
+          if (nextLine.match(/^#{1,6}\s/)) {
+            break;
+          }
+          
+          // Stop if we hit an empty line followed by non-indented text that looks like paragraph
+          if (nextLine.trim() === '' && i + 1 < lines.length) {
+            const lineAfterEmpty = lines[i + 1];
+            // If next line doesn't start with spaces and isn't diagram syntax, we're done
+            if (lineAfterEmpty.trim() !== '' && 
+                !lineAfterEmpty.match(/^\s{4,}/) && 
+                !lineAfterEmpty.match(/^[\s]*[-|>]/) &&
+                !lineAfterEmpty.match(/^[\s]*[A-Z0-9]+[\[\(:]/) &&
+                !lineAfterEmpty.match(/^[\s]*participant /i) &&
+                !lineAfterEmpty.match(/^[\s]*Note /i) &&
+                !lineAfterEmpty.match(/^[\s]*subgraph /i) &&
+                !lineAfterEmpty.match(/^[\s]*end\s*$/i)) {
+              break;
+            }
+          }
+          
+          codeLines.push(nextLine);
+          i++;
+        }
+        
+        const code = codeLines.join('\n').trim();
+        
+        // Calculate position in original text
+        const beforeText = lines.slice(0, startIdx).join('\n');
+        const startPosition = beforeText.length + (startIdx > 0 ? 1 : 0);
+        
+        // Check if overlapping with backtick blocks
+        const isOverlapping = blocks.some(block => 
+          startPosition >= block.startPosition && startPosition < block.endPosition
+        );
+        
+        if (!isOverlapping && code.length > 15) {
+          blocks.push({
+            type: 'mermaid',
+            code: code,
+            startPosition: startPosition,
+            endPosition: startPosition + code.length,
+            originalBlock: code
+          });
+        }
+      } else {
+        i++;
       }
     }
     
