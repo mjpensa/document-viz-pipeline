@@ -18,7 +18,11 @@ class CodeDetector {
       textLength: text.length,
       hasMermaidKeyword: text.includes('mermaid'),
       hasBackticks: text.includes('```'),
-      firstChars: text.substring(0, 100)
+      hasFlowchart: text.includes('flowchart'),
+      hasSequenceDiagram: text.includes('sequenceDiagram'),
+      hasGraph: text.includes('graph'),
+      firstChars: text.substring(0, 200),
+      firstLines: text.split('\n').slice(0, 5)
     });
     
     const codeBlocks = [];
@@ -37,7 +41,11 @@ class CodeDetector {
     logger.info(`Found ${codeBlocks.length} visualization code blocks`, {
       mermaid: mermaidBlocks.length,
       plantuml: plantumlBlocks.length,
-      blocks: codeBlocks.map(b => ({ type: b.type, codeLength: b.code.length }))
+      blocks: codeBlocks.map(b => ({ 
+        type: b.type, 
+        codeLength: b.code.length,
+        firstLine: b.code.split('\n')[0]
+      }))
     });
     
     return codeBlocks;
@@ -63,6 +71,8 @@ class CodeDetector {
       });
     }
     
+    logger.debug('Backtick pattern found', { count: blocks.length });
+    
     // Pattern 2: Direct diagram types (no backticks, no delimiters)
     // Matches diagram starting at line beginning, captures until we hit:
     // - Another diagram type keyword at line start
@@ -72,6 +82,11 @@ class CodeDetector {
     
     // Split text into lines for more precise detection
     const lines = text.split('\n');
+    logger.debug('Scanning lines for direct diagram types', { 
+      totalLines: lines.length,
+      diagramTypes: this.mermaidTypes
+    });
+    
     let i = 0;
     
     while (i < lines.length) {
@@ -81,6 +96,12 @@ class CodeDetector {
       const diagramMatch = line.match(new RegExp(`^(${diagramTypes})\\s+`, 'i'));
       
       if (diagramMatch) {
+        logger.debug('Found diagram start', { 
+          lineNumber: i, 
+          diagramType: diagramMatch[1],
+          line: line.substring(0, 100)
+        });
+        
         // Found start of a diagram - collect lines until we find a stopping point
         const startIdx = i;
         const codeLines = [line];
@@ -132,6 +153,10 @@ class CodeDetector {
         );
         
         if (!isOverlapping && code.length > 15) {
+          logger.debug('Adding mermaid block', {
+            codeLength: code.length,
+            firstLine: code.split('\n')[0]
+          });
           blocks.push({
             type: 'mermaid',
             code: code,
@@ -139,11 +164,19 @@ class CodeDetector {
             endPosition: startPosition + code.length,
             originalBlock: code
           });
+        } else {
+          logger.debug('Skipping block', { 
+            isOverlapping, 
+            codeLength: code.length,
+            reason: isOverlapping ? 'overlapping' : 'too short'
+          });
         }
       } else {
         i++;
       }
     }
+    
+    logger.debug('Direct pattern detection complete', { blocksFound: blocks.length });
     
     return blocks;
   }
