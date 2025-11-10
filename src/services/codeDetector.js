@@ -8,6 +8,8 @@ class CodeDetector {
       mermaid: /```mermaid[\s\r\n]+([\s\S]*?)```/gi,
       // Plain format: 'mermaid' keyword on its own line, followed by diagram code
       mermaidPlain: /(?:^|\n)mermaid[\s\r\n]+((?:(?!```|^mermaid[\s\r\n]|^plantuml[\s\r\n]|^#{1,6}\s)[\s\S])+?)(?=\n\n|\n#|$)/gmi,
+      // Mermaid diagram types without 'mermaid' keyword (flowchart, graph, sequenceDiagram, etc.)
+      mermaidDirect: /(?:^|\n)((?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline)[\s\r\n]+(?:(?!```|^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline|plantuml)[\s\r\n]|^#{1,6}\s)[\s\S])+?)(?=\n\n+|^#{1,6}\s|\n(?:flowchart|graph|sequenceDiagram)|$)/gmi,
       plantuml: /```plantuml[\s\r\n]+([\s\S]*?)```/gi,
       // Also support @startplantuml/@enduml syntax
       plantumlAlt: /@startuml[\s\r\n]+([\s\S]*?)@enduml/gi
@@ -67,10 +69,29 @@ class CodeDetector {
       });
     }
 
-    // Detect plain format without backticks
+    // Detect plain format with 'mermaid' keyword
     const regex2 = new RegExp(this.patterns.mermaidPlain);
     while ((match = regex2.exec(text)) !== null) {
       // Only add if not overlapping with backtick format
+      const isOverlapping = blocks.some(block => 
+        match.index >= block.startPosition && match.index < block.endPosition
+      );
+      
+      if (!isOverlapping) {
+        blocks.push({
+          type: 'mermaid',
+          code: match[1].trim(),
+          startPosition: match.index,
+          endPosition: match.index + match[0].length,
+          originalBlock: match[0]
+        });
+      }
+    }
+
+    // Detect direct diagram types (flowchart, graph, sequenceDiagram, etc.)
+    const regex3 = new RegExp(this.patterns.mermaidDirect);
+    while ((match = regex3.exec(text)) !== null) {
+      // Only add if not overlapping with previous formats
       const isOverlapping = blocks.some(block => 
         match.index >= block.startPosition && match.index < block.endPosition
       );
