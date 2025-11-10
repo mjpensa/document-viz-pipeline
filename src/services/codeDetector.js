@@ -4,13 +4,13 @@ class CodeDetector {
   constructor() {
     // Regex patterns for different visualization types
     this.patterns = {
-      // Standard markdown format with backticks
-      mermaid: /```mermaid\s*\n([\s\S]*?)```/gi,
-      // Plain format without backticks (mermaid keyword followed by code until next section/empty lines)
-      mermaidPlain: /\bmermaid\s*\n((?:(?!mermaid|plantuml|```|^#{1,6}\s|\n\s*\n\s*\n)[\s\S])+)/gmi,
-      plantuml: /```plantuml\s*\n([\s\S]*?)```/gi,
+      // Standard markdown format with backticks (more flexible with whitespace)
+      mermaid: /```mermaid[\s\r\n]+([\s\S]*?)```/gi,
+      // Plain format: 'mermaid' keyword on its own line, followed by diagram code
+      mermaidPlain: /(?:^|\n)mermaid[\s\r\n]+((?:(?!```|^mermaid[\s\r\n]|^plantuml[\s\r\n]|^#{1,6}\s)[\s\S])+?)(?=\n\n|\n#|$)/gmi,
+      plantuml: /```plantuml[\s\r\n]+([\s\S]*?)```/gi,
       // Also support @startplantuml/@enduml syntax
-      plantumlAlt: /@startuml\s*\n([\s\S]*?)@enduml/gi
+      plantumlAlt: /@startuml[\s\r\n]+([\s\S]*?)@enduml/gi
     };
   }
 
@@ -18,7 +18,12 @@ class CodeDetector {
    * Detect all visualization code blocks in text
    */
   detect(text) {
-    logger.info('Detecting visualization code blocks');
+    logger.info('Detecting visualization code blocks', {
+      textLength: text.length,
+      hasMermaidKeyword: text.includes('mermaid'),
+      hasBackticks: text.includes('```'),
+      firstChars: text.substring(0, 100)
+    });
     
     const codeBlocks = [];
     
@@ -35,7 +40,8 @@ class CodeDetector {
     
     logger.info(`Found ${codeBlocks.length} visualization code blocks`, {
       mermaid: mermaidBlocks.length,
-      plantuml: plantumlBlocks.length
+      plantuml: plantumlBlocks.length,
+      blocks: codeBlocks.map(b => ({ type: b.type, codeLength: b.code.length }))
     });
     
     return codeBlocks;
